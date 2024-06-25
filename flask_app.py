@@ -4,6 +4,11 @@ import math
 
 app = Flask(__name__)
 
+# Ruta para la URL raíz
+@app.route('/')
+def home():
+    return "Welcome to the RSSI Triangulation API"
+
 # Posiciones fijas de los puntos de acceso
 access_points = {
     'AP1': (100, 100),
