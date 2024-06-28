@@ -1,8 +1,10 @@
 import os
-from flask import Flask, request
+from flask import Flask, request, jsonify
 import math
 
 app = Flask(__name__)
+
+current_data = {}
 
 # Ruta para la URL raíz
 @app.route('/')
@@ -23,32 +25,45 @@ areas = {
     'sala': (50, 200, 350, 350)
 }
 
-@app.route('/data', methods=['POST'])
-def receive_data():
-    ssid1 = request.form['ssid1']
-    rssi1 = int(request.form['rssi1'])
-    ssid2 = request.form['ssid2']
-    rssi2 = int(request.form['rssi2'])
-    ssid3 = request.form['ssid3']
-    rssi3 = int(request.form['rssi3'])
+@app.route('/data', methods=['POST', 'GET'])
+def handle_data():
+    if request.method == 'POST':
+        ssid1 = request.form['ssid1']
+        rssi1 = int(request.form['rssi1'])
+        ssid2 = request.form['ssid2']
+        rssi2 = int(request.form['rssi2'])
+        ssid3 = request.form['ssid3']
+        rssi3 = int(request.form['rssi3'])
 
-    print(f"SSID1: {ssid1}, RSSI1: {rssi1}")
-    print(f"SSID2: {ssid2}, RSSI2: {rssi2}")
-    print(f"SSID3: {ssid3}, RSSI3: {rssi3}")
+        print(f"SSID1: {ssid1}, RSSI1: {rssi1}")
+        print(f"SSID2: {ssid2}, RSSI2: {rssi2}")
+        print(f"SSID3: {ssid3}, RSSI3: {rssi3}")
 
-    # Convertir RSSI a distancia (aquí se usa un modelo simple)
-    dist1 = rssi_to_distance(rssi1)
-    dist2 = rssi_to_distance(rssi2)
-    dist3 = rssi_to_distance(rssi3)
+        # Convertir RSSI a distancia (aquí se usa un modelo simple)
+        dist1 = rssi_to_distance(rssi1)
+        dist2 = rssi_to_distance(rssi2)
+        dist3 = rssi_to_distance(rssi3)
 
-    # Calcular la posición del punto basado en la trilateración
-    x, y = trilaterate(
-        access_points['AP1'][0], access_points['AP1'][1], dist1,
-        access_points['AP2'][0], access_points['AP2'][1], dist2,
-        access_points['AP3'][0], access_points['AP3'][1], dist3
-    )
+        # Calcular la posición del punto basado en la trilateración
+        x, y = trilaterate(
+            access_points['AP1'][0], access_points['AP1'][1], dist1,
+            access_points['AP2'][0], access_points['AP2'][1], dist2,
+            access_points['AP3'][0], access_points['AP3'][1], dist3
+        )
 
-    return determine_position(x, y), 200
+        area = determine_position(x, y)
+
+        current_data.update({
+            'ssid1': ssid1, 'rssi1': rssi1,
+            'ssid2': ssid2, 'rssi2': rssi2,
+            'ssid3': ssid3, 'rssi3': rssi3,
+            'x': x, 'y': y, 'area': area
+        })
+
+        return area, 200
+
+    elif request.method == 'GET':
+        return jsonify(current_data), 200
 
 def rssi_to_distance(rssi):
     # Convertir RSSI a distancia usando un modelo simple
