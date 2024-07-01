@@ -23,21 +23,21 @@ def fetch_data():
             response = requests.get(server_url)
             if response.status_code == 200:
                 data = response.json()
-                update_display(data['ssid1'], data['rssi1'], data['ssid2'], data['rssi2'], data['ssid3'], data['rssi3'], data['x'], data['y'], data['area'], data['recognized_adult'])
+                update_display(data['ssid1'], data['rssi1'], data['ssid2'], data['rssi2'], data['ssid3'], data['rssi3'], data['x'], data['y'], data['area'], data['detection_message'])
             else:
                 print("Error al obtener los datos: ", response.status_code)
         except Exception as e:
             print("Error de conexión: ", e)
         time.sleep(5)
 
-def update_display(ssid1, rssi1, ssid2, rssi2, ssid3, rssi3, x, y, area, recognized_adult):
+def update_display(ssid1, rssi1, ssid2, rssi2, ssid3, rssi3, x, y, area, detection_message):
     # Actualizar la etiqueta con los datos
     label.config(text=f"SSID1: {ssid1}, RSSI1: {rssi1}\n"
                       f"SSID2: {ssid2}, RSSI2: {rssi2}\n"
                       f"SSID3: {ssid3}, RSSI3: {rssi3}\n"
                       f"Position: ({x:.2f}, {y:.2f})\n"
                       f"Area: {area}\n"
-                      f"Adulto Mayor Reconocido: {recognized_adult}")
+                      f"Message: {detection_message}")
 
     # Mapear las coordenadas del área de monitoreo al canvas
     mapped_x = (x - monitoring_area['x_min']) / (monitoring_area['x_max'] - monitoring_area['x_min']) * canvas_width
