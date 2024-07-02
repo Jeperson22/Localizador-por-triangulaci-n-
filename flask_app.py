@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, Response
 import os
 import cv2
 import numpy as np
+import time
 
 app = Flask(__name__)
 
@@ -97,23 +98,28 @@ def recognize_faces(frame):
         return "No se ha detectado a la persona adulta mayor."
 
 def generate_video_stream():
-    cap = cv2.VideoCapture(RTSP_URL)
     while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+        cap = cv2.VideoCapture(RTSP_URL)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)  # Reducir la resolución del video
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-        detection_message = recognize_faces(frame)
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Error al leer el frame de video. Reintentando...")
+                cap.release()
+                time.sleep(1)
+                break
 
-        # Dibujar la detección en el frame
-        cv2.putText(frame, detection_message, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            detection_message = recognize_faces(frame)
 
-        ret, buffer = cv2.imencode('.jpg', frame)
-        frame = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            # Dibujar la detección en el frame
+            cv2.putText(frame, detection_message, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-    cap.release()
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame = buffer.tobytes()
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 @app.route('/video_feed')
 def video_feed():
