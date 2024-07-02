@@ -2,8 +2,11 @@ import tkinter as tk
 from threading import Thread
 import requests
 import time
+from PIL import Image, ImageTk
+import cv2
 
-server_url = "https://localizador-por-triangulaci-n.onrender.com/data"
+server_url = "https://localizador-por-triangulaci-n.onrender.com"
+video_feed_url = f"{server_url}/video_feed"
 
 # Dimensiones del canvas
 canvas_width = 400
@@ -20,7 +23,7 @@ monitoring_area = {
 def fetch_data():
     while True:
         try:
-            response = requests.get(server_url)
+            response = requests.get(f"{server_url}/data")
             if response.status_code == 200:
                 data = response.json()
                 update_display(data['ssid1'], data['rssi1'], data['ssid2'], data['rssi2'], data['ssid3'], data['rssi3'], data['x'], data['y'], data['area'], data['detection_message'])
@@ -46,6 +49,18 @@ def update_display(ssid1, rssi1, ssid2, rssi2, ssid3, rssi3, x, y, area, detecti
     # Actualizar la posición del punto en el canvas
     canvas.coords(point, mapped_x-5, mapped_y-5, mapped_x+5, mapped_y+5)
 
+def update_video():
+    cap = cv2.VideoCapture(video_feed_url)
+    while True:
+        ret, frame = cap.read()
+        if ret:
+            cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(cv2image)
+            imgtk = ImageTk.PhotoImage(image=img)
+            video_label.imgtk = imgtk
+            video_label.config(image=imgtk)
+        time.sleep(0.03)
+
 root = tk.Tk()
 root.title("RSSI Triangulation Data")
 
@@ -66,9 +81,18 @@ point = canvas.create_oval(195, 195, 205, 205, fill="red")
 label = tk.Label(root, text="Esperando datos...", font=("Helvetica", 16), justify="left")
 label.pack(pady=20, padx=20)
 
+# Etiqueta para mostrar el video
+video_label = tk.Label(root)
+video_label.pack()
+
 # Iniciar el hilo de actualización de la etiqueta y el canvas
 fetch_thread = Thread(target=fetch_data)
 fetch_thread.daemon = True
 fetch_thread.start()
+
+# Iniciar el hilo de actualización del video
+video_thread = Thread(target=update_video)
+video_thread.daemon = True
+video_thread.start()
 
 root.mainloop()

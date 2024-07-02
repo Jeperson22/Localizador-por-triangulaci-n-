@@ -1,9 +1,12 @@
+from flask import Flask, request, jsonify, Response
 import os
 import cv2
 import numpy as np
-from flask import Flask, request, jsonify
 
 app = Flask(__name__)
+
+# URL de la cámara RTSP
+RTSP_URL = "rtsp://admin:BVXEDH@192.168.3.4/video"
 
 current_data = {}
 
@@ -71,76 +74,96 @@ def train_recognizer():
     print("Training completed.")
     return recognizer, label_dict
 
-def recognize_faces():
+def recognize_faces(frame):
     print("Recognizing faces...")
-    cap = cv2.VideoCapture(0)
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
     faces_detected = []
 
-    while len(faces_detected) < 20:
-        ret, frame = cap.read()
-        if not ret:
-            break
+    for (x, y, w, h) in faces:
+        face = gray[y:y+h, x:x+w]
+        face_resized = cv2.resize(face, (200, 200))
 
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+        try:
+            label, confidence = recognizer.predict(face_resized)
+            label_text = list(label_dict.keys())[list(label_dict.values()).index(label)]
+            faces_detected.append(label_text)
+        except:
+            faces_detected.append("Unknown")
 
-        for (x, y, w, h) in faces:
-            face = gray[y:y+h, x:x+w]
-            face_resized = cv2.resize(face, (200, 200))
-
-            try:
-                label, confidence = recognizer.predict(face_resized)
-                label_text = list(label_dict.keys())[list(label_dict.values()).index(label)]
-                faces_detected.append(label_text)
-            except:
-                faces_detected.append("Unknown")
-
-    cap.release()
-    cv2.destroyAllWindows()
-
-    # Generar el mensaje de detección
     if "adulto_mayor" in faces_detected:
         return "La persona adulta mayor ha sido detectada."
     else:
         return "No se ha detectado a la persona adulta mayor."
 
+def generate_video_stream():
+    cap = cv2.VideoCapture(RTSP_URL)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        detection_message = recognize_faces(frame)
+
+        # Dibujar la detección en el frame
+        cv2.putText(frame, detection_message, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+        ret, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+    cap.release()
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(generate_video_stream(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
 @app.route('/data', methods=['POST', 'GET'])
 def handle_data():
     if request.method == 'POST':
-        ssid1 = request.form['ssid1']
-        rssi1 = int(request.form['rssi1'])
-        ssid2 = request.form['ssid2']
-        rssi2 = int(request.form['rssi2'])
-        ssid3 = request.form['ssid3']
-        rssi3 = int(request.form['rssi3'])
+        try:
+            ssid1 = request.form['ssid1']
+            rssi1 = int(request.form['rssi1'])
+            ssid2 = request.form['ssid2']
+            rssi2 = int(request.form['rssi2'])
+            ssid3 = request.form['ssid3']
+            rssi3 = int(request.form['rssi3'])
 
-        print(f"SSID1: {ssid1}, RSSI1: {rssi1}")
-        print(f"SSID2: {ssid2}, RSSI2: {rssi2}")
-        print(f"SSID3: {ssid3}, RSSI3: {rssi3}")
+            print(f"SSID1: {ssid1}, RSSI1: {rssi1}")
+            print(f"SSID2: {ssid2}, RSSI2: {rssi2}")
+            print(f"SSID3: {ssid3}, RSSI3: {rssi3}")
 
-        dist1 = rssi_to_distance(rssi1)
-        dist2 = rssi_to_distance(rssi2)
-        dist3 = rssi_to_distance(rssi3)
+            dist1 = rssi_to_distance(rssi1)
+            dist2 = rssi_to_distance(rssi2)
+            dist3 = rssi_to_distance(rssi3)
 
-        x, y = trilaterate(
-            access_points['AP1'][0], access_points['AP1'][1], dist1,
-            access_points['AP2'][0], access_points['AP2'][1], dist2,
-            access_points['AP3'][0], access_points['AP3'][1], dist3
-        )
+            x, y = trilaterate(
+                access_points['AP1'][0], access_points['AP1'][1], dist1,
+                access_points['AP2'][0], access_points['AP2'][1], dist2,
+                access_points['AP3'][0], access_points['AP3'][1], dist3
+            )
 
-        area = determine_position(x, y)
+            area = determine_position(x, y)
 
-        detection_message = recognize_faces()
+            # Aquí no se está pasando el frame a recognize_faces. Necesitamos arreglarlo.
+            # Dado que recognize_faces requiere un frame, podrías necesitar ajustar cómo obtienes el frame para reconocimiento facial.
+            detection_message = "No se ha realizado reconocimiento facial en esta solicitud."
 
-        current_data.update({
-            'ssid1': ssid1, 'rssi1': rssi1,
-            'ssid2': ssid2, 'rssi2': rssi2,
-            'ssid3': ssid3, 'rssi3': rssi3,
-            'x': x, 'y': y, 'area': area,
-            'detection_message': detection_message
-        })
+            current_data.update({
+                'ssid1': ssid1, 'rssi1': rssi1,
+                'ssid2': ssid2, 'rssi2': rssi2,
+                'ssid3': ssid3, 'rssi3': rssi3,
+                'x': x, 'y': y, 'area': area,
+                'detection_message': detection_message
+            })
 
-        return detection_message, 200
+            return detection_message, 200
+
+        except Exception as e:
+            print(f"Error handling POST data: {e}")
+            return "Internal Server Error", 500
 
     elif request.method == 'GET':
         return jsonify(current_data), 200
