@@ -7,7 +7,7 @@ import time
 app = Flask(__name__)
 
 # URL de la cámara RTSP
-RTSP_URL = "rtsp://admin:BVXEDH@192.168.3.6/video"
+RTSP_URL = "rtsp://admin:BVXEDH@192.168.100.2/video"
 
 current_data = {}
 
