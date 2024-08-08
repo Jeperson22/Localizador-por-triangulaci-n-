@@ -39,8 +39,8 @@ def fetch_data():
         time.sleep(5)
 
 def update_display(rssi1, rssi2, x, y, area, detection_message, camera_status, esp32_status):
-    label.config(text=f"RSSI1: {rssi1}\n"
-                      f"RSSI2: {rssi2}\n"
+    label.config(text=f"RSSI1 (Higinio): {rssi1}\n"
+                      f"RSSI2 (Celina): {rssi2}\n"
                       f"Position: ({x:.2f}, {y:.2f})\n"
                       f"Area: {area}\n"
                       f"Message: {detection_message}\n"
