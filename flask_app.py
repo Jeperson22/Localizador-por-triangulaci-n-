@@ -9,7 +9,16 @@ app = Flask(__name__)
 # URL de la cámara RTSP
 RTSP_URL = "rtsp://admin:BVXEDH@192.168.100.2/video"
 
-current_data = {}
+current_data = {
+    'rssi1': None,
+    'rssi2': None,
+    'x': None,
+    'y': None,
+    'area': None,
+    'detection_message': None,
+    'camera_status': 'Disconnected',
+    'esp32_status': 'Disconnected'
+}
 
 @app.route('/')
 def home():
@@ -100,10 +109,15 @@ def recognize_faces(frame):
 def generate_video_stream():
     while True:
         cap = cv2.VideoCapture(RTSP_URL)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)  # Reducir la resolución del video
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-        while True:
+        if not cap.isOpened():
+            current_data['camera_status'] = 'Disconnected'
+        else:
+            current_data['camera_status'] = 'Connected'
+
+        while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 print("Error al leer el frame de video. Reintentando...")
@@ -123,52 +137,47 @@ def generate_video_stream():
 
 @app.route('/video_feed')
 def video_feed():
-    return Response(generate_video_stream(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(generate_video_stream(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/data', methods=['POST', 'GET'])
 def handle_data():
     if request.method == 'POST':
         try:
-            ssid1 = request.form['ssid1']
-            rssi1 = int(request.form['rssi1'])
-            ssid2 = request.form['ssid2']
-            rssi2 = int(request.form['rssi2'])
-            ssid3 = request.form['ssid3']
-            rssi3 = int(request.form['rssi3'])
+            rssi1 = int(request.form['Higinio'])
+            rssi2 = int(request.form['Celina'])
 
-            print(f"SSID1: {ssid1}, RSSI1: {rssi1}")
-            print(f"SSID2: {ssid2}, RSSI2: {rssi2}")
-            print(f"SSID3: {ssid3}, RSSI3: {rssi3}")
+            print(f"RSSI Higinio: {rssi1}")
+            print(f"RSSI Celina: {rssi2}")
+
+            current_data['esp32_status'] = 'Connected'
 
             dist1 = rssi_to_distance(rssi1)
             dist2 = rssi_to_distance(rssi2)
-            dist3 = rssi_to_distance(rssi3)
 
             x, y = trilaterate(
                 access_points['AP1'][0], access_points['AP1'][1], dist1,
                 access_points['AP2'][0], access_points['AP2'][1], dist2,
-                access_points['AP3'][0], access_points['AP3'][1], dist3
+                access_points['AP3'][0], access_points['AP3'][1], dist2  # Usar dist2 para ambos si solo hay dos RSSI
             )
 
             area = determine_position(x, y)
 
-            # Aquí no se está pasando el frame a recognize_faces. Necesitamos arreglarlo.
-            # Dado que recognize_faces requiere un frame, podrías necesitar ajustar cómo obtienes el frame para reconocimiento facial.
             detection_message = "No se ha realizado reconocimiento facial en esta solicitud."
 
             current_data.update({
-                'ssid1': ssid1, 'rssi1': rssi1,
-                'ssid2': ssid2, 'rssi2': rssi2,
-                'ssid3': ssid3, 'rssi3': rssi3,
-                'x': x, 'y': y, 'area': area,
+                'rssi1': rssi1,
+                'rssi2': rssi2,
+                'x': x,
+                'y': y,
+                'area': area,
                 'detection_message': detection_message
             })
 
-            return detection_message, 200
+            return jsonify(current_data), 200
 
         except Exception as e:
             print(f"Error handling POST data: {e}")
+            current_data['esp32_status'] = 'Disconnected'
             return "Internal Server Error", 500
 
     elif request.method == 'GET':
