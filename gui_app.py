@@ -27,7 +27,8 @@ def fetch_data():
             response = requests.get(f"{server_url}/data")
             if response.status_code == 200:
                 data = response.json()
-                update_display(data['ssid1'], data['rssi1'], data['ssid2'], data['rssi2'], data['ssid3'], data['rssi3'], data['x'], data['y'], data['area'], data['detection_message'])
+                print("Datos recibidos: ", data)  # Mensaje de depuración
+                update_display(data.get('rssi1'), data.get('rssi2'), data.get('x'), data.get('y'), data.get('area'), data.get('detection_message'))
                 retry_count = 0  # Reiniciar el contador de reintentos en caso de éxito
             else:
                 print("Error al obtener los datos: ", response.status_code)
@@ -37,10 +38,9 @@ def fetch_data():
             time.sleep(min(2 ** retry_count, 60))  # Retardo exponencial hasta 60 segundos
         time.sleep(5)
 
-def update_display(ssid1, rssi1, ssid2, rssi2, ssid3, rssi3, x, y, area, detection_message):
-    label.config(text=f"SSID1: {ssid1}, RSSI1: {rssi1}\n"
-                      f"SSID2: {ssid2}, RSSI2: {rssi2}\n"
-                      f"SSID3: {ssid3}, RSSI3: {rssi3}\n"
+def update_display(rssi1, rssi2, x, y, area, detection_message):
+    label.config(text=f"RSSI1: {rssi1}\n"
+                      f"RSSI2: {rssi2}\n"
                       f"Position: ({x:.2f}, {y:.2f})\n"
                       f"Area: {area}\n"
                       f"Message: {detection_message}")
