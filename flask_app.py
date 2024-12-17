@@ -183,6 +183,13 @@ def handle_data():
     elif request.method == 'GET':
         return jsonify(current_data), 200
 
+@app.route('/get_contact', methods=['GET'])
+def get_contact():
+    # Aquí defines el nombre del contacto o número de teléfono
+    contact_name = "+593xxxxxxxxx"  # Reemplaza con el número de teléfono del contacto
+
+    return jsonify({'contact': contact_name})
+
 def rssi_to_distance(rssi):
     tx_power = -59
     if rssi == 0:
