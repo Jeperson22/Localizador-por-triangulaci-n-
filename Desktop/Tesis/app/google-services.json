@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "860620152522",
+    "project_id": "tesis-a77a8",
+    "storage_bucket": "tesis-a77a8.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:860620152522:android:ce1b76ba8f2f1e1b721e33",
+        "android_client_info": {
+          "package_name": "com.example.rastreador"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCt5d17uJwTBOf-cIghUV0HayySE1sQpw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
