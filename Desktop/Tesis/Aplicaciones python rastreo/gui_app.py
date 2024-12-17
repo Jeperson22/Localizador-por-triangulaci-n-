@@ -20,25 +20,54 @@ monitoring_area = {
     'y_max': 400
 }
 
+# Variables globales para mantener los datos
+data = {
+    'rssi1': None,
+    'rssi2': None,
+    'x': None,
+    'y': None,
+    'area': None,
+    'detection_message': None,
+    'camera_status': None,
+    'esp32_status': None
+}
+
 def fetch_data():
+    """Función que obtiene los datos del servidor Flask de forma controlada"""
     retry_count = 0
     while True:
         try:
             response = requests.get(f"{server_url}/data")
             if response.status_code == 200:
-                data = response.json()
-                print("Datos recibidos: ", data)  # Mensaje de depuración
-                update_display(data.get('rssi1'), data.get('rssi2'), data.get('x'), data.get('y'), data.get('area'), data.get('detection_message'), data.get('camera_status'), data.get('esp32_status'))
-                retry_count = 0  # Reiniciar el contador de reintentos en caso de éxito
+                new_data = response.json()
+                if new_data != data:  # Solo actualizamos si los datos han cambiado
+                    print("Datos recibidos: ", new_data)
+                    # Actualizamos los datos globales
+                    data.update(new_data)
+                    # Llamamos a update_display para actualizar la UI
+                    update_display()
+                retry_count = 0  # Reiniciamos el contador de reintentos en caso de éxito
             else:
                 print("Error al obtener los datos: ", response.status_code)
         except Exception as e:
             print("Error de conexión: ", e)
             retry_count += 1
             time.sleep(min(2 ** retry_count, 60))  # Retardo exponencial hasta 60 segundos
-        time.sleep(5)
+        time.sleep(5)  # Hacemos una pausa de 5 segundos entre cada intento
 
-def update_display(rssi1, rssi2, x, y, area, detection_message, camera_status, esp32_status):
+def update_display():
+    """Función para actualizar la interfaz gráfica con los nuevos datos"""
+    # Obtener los datos actuales de la variable global 'data'
+    rssi1 = data['rssi1']
+    rssi2 = data['rssi2']
+    x = data['x']
+    y = data['y']
+    area = data['area']
+    detection_message = data['detection_message']
+    camera_status = data['camera_status']
+    esp32_status = data['esp32_status']
+    
+    # Actualizar el texto de la etiqueta
     label.config(text=f"RSSI1 (Higinio): {rssi1}\n"
                       f"RSSI2 (Celina): {rssi2}\n"
                       f"Position: ({x:.2f}, {y:.2f})\n"
@@ -47,14 +76,16 @@ def update_display(rssi1, rssi2, x, y, area, detection_message, camera_status, e
                       f"Camera Status: {camera_status}\n"
                       f"ESP32 Status: {esp32_status}")
 
+    # Actualizar la posición del punto en el canvas solo si se reciben coordenadas válidas
     if x is not None and y is not None:
         mapped_x = (x - monitoring_area['x_min']) / (monitoring_area['x_max'] - monitoring_area['x_min']) * canvas_width
         mapped_y = (y - monitoring_area['y_min']) / (monitoring_area['y_max'] - monitoring_area['y_min']) * canvas_height
         canvas.coords(point, mapped_x-5, mapped_y-5, mapped_x+5, mapped_y+5)
     else:
-        canvas.coords(point, -10, -10, -10, -10)  # Mueve el punto fuera del área visible si no hay datos
+        canvas.coords(point, -10, -10, -10, -10)  # Mover el punto fuera del área visible si no hay datos
 
 def update_video():
+    """Función para mostrar el video desde el servidor"""
     while True:
         try:
             cap = cv2.VideoCapture(video_feed_url)
