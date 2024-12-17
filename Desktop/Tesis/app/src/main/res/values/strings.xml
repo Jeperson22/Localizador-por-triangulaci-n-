@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Rastreador</string>
+    <!-- Añade otras cadenas aquí si es necesario -->
+    <string name="accessibility_service_description">Descripción de tu servicio de accesibilidad</string>
+</resources>
