@@ -4,7 +4,7 @@ from threading import Thread
 
 app = Flask(__name__)
 
-# Estado de conexión de las ESP32 con su último timestamp
+# Estado de conexión de las ESP32 con su último timestamp y datos adicionales
 esp32_status = {}
 
 # Tiempo límite en segundos para marcar un dispositivo como "Desconectado"
@@ -35,14 +35,24 @@ def handle_data():
     try:
         # Obtener el nombre del dispositivo desde el cuerpo de la solicitud
         device_name = request.form.get('esp32_id')
+        celina_rssi = request.form.get('celina_rssi')
+        higinio_rssi = request.form.get('higinio_rssi')
 
         if device_name:  # Si se recibe un nombre de dispositivo
             # Actualizamos el estado del dispositivo o lo agregamos si es nuevo
             esp32_status[device_name] = {
                 "status": "Connected",
-                "last_seen": time.time()
+                "last_seen": time.time(),
+                "bluetooth_data": {
+                    "Celina": celina_rssi,
+                    "Higinio": higinio_rssi
+                }
             }
             print(f"Datos recibidos de {device_name}")
+            if celina_rssi:
+                print(f"Celina: {celina_rssi} dBm")
+            if higinio_rssi:
+                print(f"Higinio: {higinio_rssi} dBm")
             return jsonify({'status': 'success'}), 200
         else:
             return jsonify({'status': 'error', 'message': 'Nombre de dispositivo no proporcionado'}), 400
@@ -54,7 +64,13 @@ def handle_data():
 @app.route('/status', methods=['GET'])
 def get_status():
     # Retornar solo los estados actuales de los dispositivos
-    return jsonify({device: info["status"] for device, info in esp32_status.items()}), 200
+    return jsonify({
+        device: {
+            "status": info["status"],
+            "bluetooth_data": info["bluetooth_data"]
+        }
+        for device, info in esp32_status.items()
+    }), 200
 
 if __name__ == '__main__':
     # Iniciar el monitor de dispositivos en un hilo separado
