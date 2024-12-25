@@ -10,6 +10,7 @@ esp32_status = {}
 # Tiempo límite en segundos para marcar un dispositivo como "Desconectado"
 TIMEOUT = 10
 
+
 def monitor_devices():
     """Hilo que actualiza el estado de los dispositivos según el tiempo transcurrido."""
     while True:
@@ -19,24 +20,26 @@ def monitor_devices():
             last_seen = info["last_seen"]
             if current_time - last_seen > TIMEOUT:
                 to_disconnect.append(device)
-        
+
         # Marcar dispositivos como "Disconnected"
         for device in to_disconnect:
             esp32_status[device]["status"] = "Disconnected"
 
         time.sleep(1)  # Verificar cada segundo
 
+
 @app.route('/')
 def home():
     return "Bienvenido a la API de Monitoreo de ESP32"
 
+
 @app.route('/data', methods=['POST'])
 def handle_data():
     try:
-        # Obtener el nombre del dispositivo desde el cuerpo de la solicitud
+        # Obtener datos enviados por la ESP32
         device_name = request.form.get('esp32_id')
-        celina_rssi = request.form.get('celina_rssi')
-        higinio_rssi = request.form.get('higinio_rssi')
+        celina_rssi = request.form.get('Celina', "No data")  # Valor predeterminado
+        higinio_rssi = request.form.get('Higinio', "No data")  # Valor predeterminado
 
         if device_name:  # Si se recibe un nombre de dispositivo
             # Actualizamos el estado del dispositivo o lo agregamos si es nuevo
@@ -48,11 +51,9 @@ def handle_data():
                     "Higinio": higinio_rssi
                 }
             }
-            print(f"Datos recibidos de {device_name}")
-            if celina_rssi:
-                print(f"Celina: {celina_rssi} dBm")
-            if higinio_rssi:
-                print(f"Higinio: {higinio_rssi} dBm")
+            print(f"Datos recibidos de {device_name}:")
+            print(f"  Celina RSSI: {celina_rssi}")
+            print(f"  Higinio RSSI: {higinio_rssi}")
             return jsonify({'status': 'success'}), 200
         else:
             return jsonify({'status': 'error', 'message': 'Nombre de dispositivo no proporcionado'}), 400
@@ -61,16 +62,18 @@ def handle_data():
         print(f"Error al manejar los datos POST: {e}")
         return "Error Interno del Servidor", 500
 
+
 @app.route('/status', methods=['GET'])
 def get_status():
-    # Retornar solo los estados actuales de los dispositivos
+    """Devuelve el estado actual de todas las ESP32."""
     return jsonify({
         device: {
             "status": info["status"],
-            "bluetooth_data": info["bluetooth_data"]
+            "bluetooth_data": info.get("bluetooth_data", {})
         }
         for device, info in esp32_status.items()
     }), 200
+
 
 if __name__ == '__main__':
     # Iniciar el monitor de dispositivos en un hilo separado
