@@ -13,8 +13,15 @@ def get_status():
         # Imprimir los datos recibidos
         data = response.json()
         print("Estado de las ESP32:")
-        for device, status in data.items():
-            print(f"{device}: {status}")
+        for device, info in data.items():
+            status = info["status"]
+            bluetooth_data = info.get("bluetooth_data", {})
+            celina_rssi = bluetooth_data.get("Celina", "No disponible")
+            higinio_rssi = bluetooth_data.get("Higinio", "No disponible")
+            print(f"Dispositivo: {device}")
+            print(f"  Estado: {status}")
+            print(f"  Celina RSSI: {celina_rssi}")
+            print(f"  Higinio RSSI: {higinio_rssi}")
         print("-" * 30)  # Separador para la salida
     
     except requests.exceptions.RequestException as e:
@@ -27,3 +34,4 @@ if __name__ == "__main__":
     while True:
         get_status()
         time.sleep(5)  # Espera 5 segundos antes de hacer otra solicitud
+
