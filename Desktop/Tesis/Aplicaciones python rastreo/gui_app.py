@@ -18,14 +18,23 @@ def fetch_location():
         response.raise_for_status()
         data = response.json()
         
-        if data["status"] == "success":
-            location = data["location"]
-            return location["x"], location["y"]
+        if data.get("status") == "success":
+            location = data.get("location")
+            if location and "x" in location and "y" in location:
+                return location["x"], location["y"]
+            else:
+                print("Respuesta inesperada: falta el campo 'location'")
+                return None
         else:
+            print("Error del servidor: ", data.get("message", "Desconocido"))
             return None
-    except requests.exceptions.RequestException as e:
-        print(f"Error al conectarse al servidor: {e}")
-        return None
+    except requests.exceptions.HTTPError as http_err:
+        print(f"Error HTTP: {http_err}")
+    except requests.exceptions.RequestException as req_err:
+        print(f"Error de conexión: {req_err}")
+    except ValueError as val_err:
+        print(f"Error al analizar la respuesta JSON: {val_err}")
+    return None
 
 def update_canvas():
     """

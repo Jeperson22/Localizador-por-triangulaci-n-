@@ -23,37 +23,41 @@ def rssi_to_distance(rssi):
     Convierte RSSI a distancia en metros usando un modelo simplificado.
     Pérdida de trayectoria (path loss) simplificada.
     """
-    tx_power = -59  # Potencia de transmisión (RSSI a 1 metro)
-    n = 2  # Factor ambiental típico para interiores
-    return 10 ** ((tx_power - int(rssi)) / (10 * n))
-
+    try:
+        tx_power = -59  # Potencia de transmisión (RSSI a 1 metro)
+        n = 2  # Factor ambiental típico para interiores
+        rssi = int(rssi)
+        return 10 ** ((tx_power - rssi) / (10 * n))
+    except ValueError:
+        return float('inf')  # Devuelve distancia infinita si RSSI no es válido
 
 def triangulate(devices_data):
     """
     Calcula la ubicación estimada con datos de al menos 3 dispositivos.
     devices_data: Diccionario con coordenadas (X, Y) y distancia.
     """
-    if len(devices_data) < 3:
-        return None  # Se necesita al menos 3 dispositivos
+    try:
+        if len(devices_data) < 3:
+            return None  # Se necesita al menos 3 dispositivos
 
-    x1, y1, d1 = devices_data[0]
-    x2, y2, d2 = devices_data[1]
-    x3, y3, d3 = devices_data[2]
+        x1, y1, d1 = devices_data[0]
+        x2, y2, d2 = devices_data[1]
+        x3, y3, d3 = devices_data[2]
 
-    # Triangulación utilizando ecuaciones de intersección de círculos
-    # Fórmulas para coordenadas X, Y:
-    A = 2 * (x2 - x1)
-    B = 2 * (y2 - y1)
-    C = d1**2 - d2**2 - x1**2 + x2**2 - y1**2 + y2**2
-    D = 2 * (x3 - x2)
-    E = 2 * (y3 - y2)
-    F = d2**2 - d3**2 - x2**2 + x3**2 - y2**2 + y3**2
+        # Triangulación utilizando ecuaciones de intersección de círculos
+        A = 2 * (x2 - x1)
+        B = 2 * (y2 - y1)
+        C = d1**2 - d2**2 - x1**2 + x2**2 - y1**2 + y2**2
+        D = 2 * (x3 - x2)
+        E = 2 * (y3 - y2)
+        F = d2**2 - d3**2 - x2**2 + x3**2 - y2**2 + y3**2
 
-    x = (C * E - F * B) / (E * A - B * D)
-    y = (C * D - A * F) / (B * D - A * E)
+        x = (C * E - F * B) / (E * A - B * D)
+        y = (C * D - A * F) / (B * D - A * E)
 
-    return round(x, 2), round(y, 2)
-
+        return round(x, 2), round(y, 2)
+    except ZeroDivisionError:
+        return None
 
 def monitor_devices():
     """Hilo que actualiza el estado de los dispositivos según el tiempo transcurrido."""
@@ -72,7 +76,6 @@ def monitor_devices():
             esp32_status[device]["status"] = "Disconnected"
 
         time.sleep(1)  # Verificar cada segundo
-
 
 @app.route('/data', methods=['POST'])
 def handle_data():
@@ -99,8 +102,8 @@ def handle_data():
         return jsonify({'status': 'success', 'message': f'Datos actualizados para {device_name}'}), 200
 
     except Exception as e:
+        print(f"Error en /data: {e}")
         return jsonify({'status': 'error', 'message': 'Error interno del servidor'}), 500
-
 
 @app.route('/location', methods=['GET'])
 def get_location():
@@ -123,6 +126,7 @@ def get_location():
         )
 
         if len(active_devices) < 3:
+            print("Error: Menos de 3 dispositivos conectados")
             return jsonify({'status': 'error', 'message': 'Se necesitan al menos 3 dispositivos activos'}), 400
 
         # Extraer coordenadas y distancia
@@ -134,16 +138,18 @@ def get_location():
                 distance = rssi_to_distance(rssi)
                 devices_data.append((*coord, distance))
 
+        print(f"Datos para triangulación: {devices_data}")
         location = triangulate(devices_data)
 
         if location:
             return jsonify({'status': 'success', 'location': {'x': location[0], 'y': location[1]}}), 200
         else:
+            print("Error: Triangulación fallida")
             return jsonify({'status': 'error', 'message': 'No se pudo calcular la ubicación'}), 400
 
     except Exception as e:
+        print(f"Error interno en /location: {e}")
         return jsonify({'status': 'error', 'message': 'Error interno del servidor'}), 500
-
 
 if __name__ == '__main__':
     monitor_thread = Thread(target=monitor_devices, daemon=True)
