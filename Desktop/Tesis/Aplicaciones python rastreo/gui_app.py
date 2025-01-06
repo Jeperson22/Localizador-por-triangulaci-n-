@@ -58,14 +58,15 @@ def update_canvas():
         canvas.coords(higinio_point, canvas_x + 20 - 5, canvas_y + 20 - 5, canvas_x + 20 + 5, canvas_y + 20 + 5)
 
         # Actualizar la etiqueta con las coordenadas
-        coordinates_label.config(text=f"Coordenadas: Celina ({x}, {y})")
+        coordinates_label.config(text=f"Coordenadas de Celina: ({x}, {y})")
 
         # Mostrar la información de los dispositivos
-        esp32_info_text = "\n".join([f"{info['device_name']}: {info['bluetooth_data']}" for info in esp32_info])
-        esp32_info_label.config(text=f"Datos de dispositivos:\n{esp32_info_text}")
+        esp32_info_text = "\n".join([f"Dispositivo: {info['device_name']}, RSSI: {info['bluetooth_data']}" for info in esp32_info])
+        esp32_info_label.config(text=f"Datos de dispositivos conectados:\n{esp32_info_text}")
 
     else:
         coordinates_label.config(text="Error al obtener coordenadas")
+        esp32_info_label.config(text="Error al obtener datos de dispositivos")
     
     # Llamar a esta función nuevamente después de 5 segundos
     root.after(5000, update_canvas)
@@ -73,7 +74,7 @@ def update_canvas():
 # Configurar la interfaz gráfica de Tkinter
 root = tk.Tk()
 root.title("Visualización de ESP32")
-root.geometry(f"{CANVAS_SIZE + 50}x{CANVAS_SIZE + 150}")  # Tamaño de la ventana
+root.geometry(f"{CANVAS_SIZE + 50}x{CANVAS_SIZE + 200}")  # Ajustar el tamaño de la ventana
 
 # Canvas para mostrar los puntos y el área de monitoreo
 canvas = tk.Canvas(root, width=CANVAS_SIZE, height=CANVAS_SIZE, bg="white")
@@ -87,11 +88,11 @@ celina_point = canvas.create_oval(0, 0, 10, 10, fill="blue", outline="blue", tag
 higinio_point = canvas.create_oval(0, 0, 10, 10, fill="red", outline="red", tags="Higinio")
 
 # Etiqueta para mostrar las coordenadas actuales
-coordinates_label = tk.Label(root, text="Coordenadas: Celina (0, 0)")
+coordinates_label = tk.Label(root, text="Coordenadas de Celina: (0, 0)", font=("Arial", 12))
 coordinates_label.pack()
 
 # Etiqueta para mostrar los datos de los dispositivos
-esp32_info_label = tk.Label(root, text="Datos de dispositivos:\n")
+esp32_info_label = tk.Label(root, text="Datos de dispositivos conectados:\n", font=("Arial", 10), justify="left")
 esp32_info_label.pack()
 
 # Iniciar la actualización del Canvas
