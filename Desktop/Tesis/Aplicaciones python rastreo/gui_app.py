@@ -20,8 +20,9 @@ def fetch_location():
         
         if data.get("status") == "success":
             location = data.get("location")
+            esp32_info = data.get("esp32_info", [])
             if location and "x" in location and "y" in location:
-                return location["x"], location["y"]
+                return location["x"], location["y"], esp32_info
             else:
                 print("Respuesta inesperada: falta el campo 'location'")
                 return None
@@ -40,11 +41,11 @@ def update_canvas():
     """
     Actualiza las posiciones de los puntos en el Canvas basándose en las coordenadas obtenidas.
     """
-    # Obtener coordenadas desde el servidor
-    location = fetch_location()
+    # Obtener coordenadas y datos de dispositivos desde el servidor
+    result = fetch_location()
     
-    if location:
-        x, y = location
+    if result:
+        x, y, esp32_info = result
         
         # Escalar las coordenadas al tamaño del Canvas
         canvas_x = x * SCALE_FACTOR
@@ -59,16 +60,20 @@ def update_canvas():
         # Actualizar la etiqueta con las coordenadas
         coordinates_label.config(text=f"Coordenadas: Celina ({x}, {y})")
 
+        # Mostrar la información de los dispositivos
+        esp32_info_text = "\n".join([f"{info['device_name']}: {info['bluetooth_data']}" for info in esp32_info])
+        esp32_info_label.config(text=f"Datos de dispositivos:\n{esp32_info_text}")
+
     else:
         coordinates_label.config(text="Error al obtener coordenadas")
-
+    
     # Llamar a esta función nuevamente después de 5 segundos
     root.after(5000, update_canvas)
 
 # Configurar la interfaz gráfica de Tkinter
 root = tk.Tk()
 root.title("Visualización de ESP32")
-root.geometry(f"{CANVAS_SIZE + 50}x{CANVAS_SIZE + 100}")  # Tamaño de la ventana
+root.geometry(f"{CANVAS_SIZE + 50}x{CANVAS_SIZE + 150}")  # Tamaño de la ventana
 
 # Canvas para mostrar los puntos y el área de monitoreo
 canvas = tk.Canvas(root, width=CANVAS_SIZE, height=CANVAS_SIZE, bg="white")
@@ -84,6 +89,10 @@ higinio_point = canvas.create_oval(0, 0, 10, 10, fill="red", outline="red", tags
 # Etiqueta para mostrar las coordenadas actuales
 coordinates_label = tk.Label(root, text="Coordenadas: Celina (0, 0)")
 coordinates_label.pack()
+
+# Etiqueta para mostrar los datos de los dispositivos
+esp32_info_label = tk.Label(root, text="Datos de dispositivos:\n")
+esp32_info_label.pack()
 
 # Iniciar la actualización del Canvas
 update_canvas()
