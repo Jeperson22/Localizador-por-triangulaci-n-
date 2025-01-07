@@ -1,17 +1,12 @@
 import requests
-import time
 import tkinter as tk
 
 # URL del servidor Flask (ajusta según sea necesario)
 BASE_URL = "https://localizador-por-triangulaci-n.onrender.com"
 
-# Tamaño del canvas (representa el área de monitoreo)
-CANVAS_SIZE = 400
-SCALE_FACTOR = 10  # Escala para ajustar las coordenadas al tamaño del canvas
-
-def fetch_location():
+def fetch_data():
     """
-    Llama al endpoint /location para obtener las coordenadas.
+    Llama al endpoint /location para obtener los datos de los dispositivos ESP32 y Bluetooth.
     """
     try:
         response = requests.get(f"{BASE_URL}/location")
@@ -19,84 +14,53 @@ def fetch_location():
         data = response.json()
         
         if data.get("status") == "success":
-            location = data.get("location")
-            esp32_info = data.get("esp32_info", [])
-            if location and "x" in location and "y" in location:
-                return location["x"], location["y"], esp32_info
-            else:
-                print("Respuesta inesperada: falta el campo 'location'")
-                return None
+            devices = data.get("devices", [])
+            return devices
         else:
             print("Error del servidor: ", data.get("message", "Desconocido"))
-            return None
+            return []
     except requests.exceptions.HTTPError as http_err:
         print(f"Error HTTP: {http_err}")
     except requests.exceptions.RequestException as req_err:
         print(f"Error de conexión: {req_err}")
     except ValueError as val_err:
         print(f"Error al analizar la respuesta JSON: {val_err}")
-    return None
+    return []
 
-def update_canvas():
+def update_data():
     """
-    Actualiza las posiciones de los puntos en el Canvas basándose en las coordenadas obtenidas.
+    Actualiza la información de los dispositivos mostrada en la ventana.
     """
-    # Obtener coordenadas y datos de dispositivos desde el servidor
-    result = fetch_location()
-    
-    if result:
-        x, y, esp32_info = result
-        
-        # Escalar las coordenadas al tamaño del Canvas
-        canvas_x = x * SCALE_FACTOR
-        canvas_y = CANVAS_SIZE - (y * SCALE_FACTOR)  # Invertir Y para que el origen esté abajo
-        
-        # Mover el punto de Celina
-        canvas.coords(celina_point, canvas_x - 5, canvas_y - 5, canvas_x + 5, canvas_y + 5)
-
-        # Simular otro punto (por ejemplo, Higinio) con un pequeño desplazamiento
-        canvas.coords(higinio_point, canvas_x + 20 - 5, canvas_y + 20 - 5, canvas_x + 20 + 5, canvas_y + 20 + 5)
-
-        # Actualizar la etiqueta con las coordenadas
-        coordinates_label.config(text=f"Coordenadas de Celina: ({x}, {y})")
-
-        # Mostrar la información de los dispositivos
-        esp32_info_text = "\n".join([f"Dispositivo: {info['device_name']}, RSSI: {info['bluetooth_data']}" for info in esp32_info])
-        esp32_info_label.config(text=f"Datos de dispositivos conectados:\n{esp32_info_text}")
-
+    devices = fetch_data()
+    if devices:
+        device_info_text = "\n".join(
+            [
+                f"ESP32: {device['esp32_id']}\n"
+                f"  - Celina RSSI: {device.get('Celina', 'No data')}\n"
+                f"  - Higinio RSSI: {device.get('Higinio', 'No data')}"
+                for device in devices
+            ]
+        )
+        device_info_label.config(text=device_info_text)
     else:
-        coordinates_label.config(text="Error al obtener coordenadas")
-        esp32_info_label.config(text="Error al obtener datos de dispositivos")
+        device_info_label.config(text="Error al obtener datos de los dispositivos.")
     
-    # Llamar a esta función nuevamente después de 5 segundos
-    root.after(5000, update_canvas)
+    # Llamar nuevamente a esta función después de 5 segundos
+    root.after(5000, update_data)
 
 # Configurar la interfaz gráfica de Tkinter
 root = tk.Tk()
-root.title("Visualización de ESP32")
-root.geometry(f"{CANVAS_SIZE + 50}x{CANVAS_SIZE + 200}")  # Ajustar el tamaño de la ventana
-
-# Canvas para mostrar los puntos y el área de monitoreo
-canvas = tk.Canvas(root, width=CANVAS_SIZE, height=CANVAS_SIZE, bg="white")
-canvas.pack(pady=20)
-
-# Dibujar un cuadrado que representa el área de monitoreo
-canvas.create_rectangle(0, 0, CANVAS_SIZE, CANVAS_SIZE, outline="black")
-
-# Crear puntos para "Celina" y "Higinio"
-celina_point = canvas.create_oval(0, 0, 10, 10, fill="blue", outline="blue", tags="Celina")
-higinio_point = canvas.create_oval(0, 0, 10, 10, fill="red", outline="red", tags="Higinio")
-
-# Etiqueta para mostrar las coordenadas actuales
-coordinates_label = tk.Label(root, text="Coordenadas de Celina: (0, 0)", font=("Arial", 12))
-coordinates_label.pack()
+root.title("Datos de Dispositivos ESP32")
+root.geometry("500x400")  # Ajustar el tamaño de la ventana
 
 # Etiqueta para mostrar los datos de los dispositivos
-esp32_info_label = tk.Label(root, text="Datos de dispositivos conectados:\n", font=("Arial", 10), justify="left")
-esp32_info_label.pack()
+device_info_label = tk.Label(
+    root, text="Cargando datos...", font=("Arial", 12), justify="left", anchor="nw"
+)
+device_info_label.pack(fill="both", expand=True, padx=10, pady=10)
 
-# Iniciar la actualización del Canvas
-update_canvas()
+# Iniciar la actualización de los datos
+update_data()
 
 # Iniciar el loop de la ventana
 root.mainloop()
