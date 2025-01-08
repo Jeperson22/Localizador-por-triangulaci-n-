@@ -26,7 +26,8 @@ def rssi_to_distance(rssi, tx_power=-59):
     """
     try:
         rssi = float(rssi)
-        return 10 ** ((tx_power - rssi) / (10 * 2))
+        # Aplicando el modelo logarítmico de pérdida de señal
+        return 10 ** ((tx_power - rssi) / (10 * 2))  # tx_power es el valor de la potencia de transmisión a 1 metro
     except ValueError:
         print(f"Error: RSSI no es un número válido: {rssi}")
         return None
