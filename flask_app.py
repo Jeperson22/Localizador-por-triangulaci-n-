@@ -6,16 +6,26 @@ app = Flask(__name__)
 # Almacenamiento temporal para los datos recibidos de los ESP32
 esp32_data = {}
 
+# Ruta para la raíz, para verificar si el servidor está funcionando
+@app.route('/')
+def home():
+    return "Servidor Flask en funcionamiento", 200
+
 @app.route('/data', methods=['POST'])
 def receive_data():
     """
     Endpoint para recibir datos de los ESP32.
     """
     try:
-        # Obtener los datos enviados por el ESP32
-        esp32_id = request.form.get("esp32_id")
-        celina_rssi = request.form.get("Celina")
-        higinio_rssi = request.form.get("Higinio")
+        # Obtener los datos enviados por el ESP32 (ahora se espera JSON)
+        data = request.get_json()  # Cambié para obtener JSON
+
+        if not data:
+            return jsonify({"status": "error", "message": "No data provided"}), 400
+
+        esp32_id = data.get("esp32_id")
+        celina_rssi = data.get("Celina")
+        higinio_rssi = data.get("Higinio")
 
         if not esp32_id:
             return jsonify({"status": "error", "message": "esp32_id no proporcionado"}), 400
@@ -70,3 +80,4 @@ def get_location():
 if __name__ == '__main__':
     # Ejecutar el servidor Flask
     app.run(debug=True, host='0.0.0.0', port=5000)
+
