@@ -56,11 +56,16 @@ def get_location():
         for esp32_id, data in esp32_data.items():
             # Calcular tiempo desde la última actualización
             last_update = time.time() - data["timestamp"]
+            
+            # Reemplazar 'No data' con 0
+            celina_rssi = int(data.get("Celina", 0)) if data.get("Celina") != "No data" else 0
+            higinio_rssi = int(data.get("Higinio", 0)) if data.get("Higinio") != "No data" else 0
+            
             data_list.append({
                 "esp32_id": esp32_id,
                 "last_update_seconds": last_update,
-                "Celina": data.get("Celina", "No data"),
-                "Higinio": data.get("Higinio", "No data"),
+                "Celina": celina_rssi,
+                "Higinio": higinio_rssi,
             })
 
         # Responder con los datos
