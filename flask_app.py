@@ -1,12 +1,50 @@
 from flask import Flask, request, jsonify
 import time
+import cv2
+import mediapipe as mp
+import threading
 
 app = Flask(__name__)
 
-# Almacenamiento temporal para los datos recibidos de los ESP32
+# Almacenamiento temporal para los datos recibidos de los ESP32 y detección de personas
 esp32_data = {}
+person_detected = False
 
-# Ruta para la raíz, para verificar si el servidor está funcionando
+# Inicializa MediaPipe Pose
+mp_pose = mp.solutions.pose
+pose = mp_pose.Pose(min_detection_confidence=0.7, min_tracking_confidence=0.7)
+
+def process_camera_feed():
+    global person_detected
+
+    # Dirección RTSP de la cámara
+    rtsp_url = "rtsp://admin:BVXEDH@192.168.100.2/video"
+    cap = cv2.VideoCapture(rtsp_url)
+
+    if not cap.isOpened():
+        print("Error: No se pudo conectar al stream de la cámara.")
+        return
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Error al recibir el frame de la cámara, reintentando...")
+            time.sleep(0.5)
+            continue
+
+        # Convierte la imagen a RGB (MediaPipe requiere este formato)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Procesa el frame con MediaPipe Pose
+        results = pose.process(rgb_frame)
+
+        # Verifica si se detecta una persona
+        if results.pose_landmarks:
+            visible_landmarks = [lm for lm in results.pose_landmarks.landmark if 0 <= lm.x <= 1 and 0 <= lm.y <= 1]
+            person_detected = len(visible_landmarks) >= 10  # Umbral para aceptar detecciones
+        else:
+            person_detected = False
+
 @app.route('/')
 def home():
     return "Servidor Flask en funcionamiento", 200
@@ -33,22 +71,16 @@ def receive_data():
             "Higinio": higinio_rssi
         }
 
-        # Imprimir los datos en el servidor para depuración
-        print(f"Datos recibidos de {esp32_id}:")
-        print(f"  - Celina RSSI: {celina_rssi}")
-        print(f"  - Higinio RSSI: {higinio_rssi}")
-
         # Responder al ESP32 con éxito
         return jsonify({"status": "success", "message": "Datos recibidos correctamente"}), 200
     except Exception as e:
         print(f"Error al procesar los datos: {e}")
         return jsonify({"status": "error", "message": "Error interno del servidor"}), 500
 
-
 @app.route('/location', methods=['GET'])
 def get_location():
     """
-    Endpoint para consultar los datos almacenados de los ESP32.
+    Endpoint para consultar los datos almacenados de los ESP32 y detección de personas.
     """
     try:
         # Crear una lista con los datos actuales
@@ -56,11 +88,11 @@ def get_location():
         for esp32_id, data in esp32_data.items():
             # Calcular tiempo desde la última actualización
             last_update = time.time() - data["timestamp"]
-            
+
             # Reemplazar 'No data' con 0
             celina_rssi = int(data.get("Celina", 0)) if data.get("Celina") != "No data" else 0
             higinio_rssi = int(data.get("Higinio", 0)) if data.get("Higinio") != "No data" else 0
-            
+
             # Crear la respuesta con los datos actuales
             data_list.append({
                 "esp32_id": esp32_id,
@@ -69,50 +101,20 @@ def get_location():
                 "Higinio": higinio_rssi,
             })
 
-        # Responder con los datos
+        # Agregar información de detección de personas
         return jsonify({
             "status": "success",
-            "devices": data_list
+            "devices": data_list,
+            "person_detected": person_detected
         }), 200
     except Exception as e:
         print(f"Error al obtener datos: {e}")
         return jsonify({"status": "error", "message": "Error interno del servidor"}), 500
 
-
-# Ruta pública para acceder a los datos de un dispositivo en particular por su ID
-@app.route('/device/<esp32_id>', methods=['GET'])
-def get_device_data(esp32_id):
-    """
-    Endpoint para consultar los datos de un dispositivo específico por su esp32_id.
-    """
-    try:
-        # Verificar si el esp32_id existe
-        if esp32_id in esp32_data:
-            data = esp32_data[esp32_id]
-            # Reemplazar 'No data' con 0 en los RSSI
-            celina_rssi = int(data.get("Celina", 0)) if data.get("Celina") != "No data" else 0
-            higinio_rssi = int(data.get("Higinio", 0)) if data.get("Higinio") != "No data" else 0
-
-            # Devolver los datos de ese dispositivo en formato JSON
-            return jsonify({
-                "status": "success",
-                "esp32_id": esp32_id,
-                "Celina": celina_rssi,
-                "Higinio": higinio_rssi,
-                "last_update_seconds": time.time() - data["timestamp"]
-            }), 200
-        else:
-            # Si no existe el esp32_id, devolver un error
-            return jsonify({
-                "status": "error",
-                "message": f"Dispositivo con esp32_id {esp32_id} no encontrado"
-            }), 404
-    except Exception as e:
-        print(f"Error al obtener los datos del dispositivo {esp32_id}: {e}")
-        return jsonify({"status": "error", "message": "Error interno del servidor"}), 500
-
-
 if __name__ == '__main__':
+    # Iniciar el procesamiento de la cámara en un hilo separado
+    camera_thread = threading.Thread(target=process_camera_feed, daemon=True)
+    camera_thread.start()
+
     # Ejecutar el servidor Flask
     app.run(debug=True, host='0.0.0.0', port=5000)
-
