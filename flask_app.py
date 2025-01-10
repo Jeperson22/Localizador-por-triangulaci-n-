@@ -20,7 +20,7 @@ def process_camera_feed():
     global person_detected
 
     # Dirección RTSP de la cámara
-    rtsp_url = "rtsp://admin:BVXEDH@192.168.100.2/video"
+    rtsp_url = "rtsp://admin:BVXEDH@45.71.187.102:8080/video"
     cap = cv2.VideoCapture(rtsp_url)
 
     if not cap.isOpened():
