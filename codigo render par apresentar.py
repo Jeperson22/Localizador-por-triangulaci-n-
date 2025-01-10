@@ -1,16 +1,65 @@
 from flask import Flask, request, jsonify
 import time
+import cv2
+import mediapipe as mp
 import threading
 
 app = Flask(__name__)
 
-# Almacenamiento temporal para los datos recibidos de los ESP32 y la detección de personas
+# Almacenamiento temporal para los datos recibidos de los ESP32 y detección de personas
 esp32_data = {}
-person_detected = False  # Variable que guarda si se detectó o no una persona
+person_detected = False
+person_detected_lock = threading.Lock()  # Bloqueo para sincronizar el acceso a `person_detected`
+
+# Inicializa MediaPipe Pose
+mp_pose = mp.solutions.pose
+pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
+
+def process_camera_feed():
+    global person_detected
+
+    # Dirección RTSP de la cámara
+    rtsp_url = "rtsp://admin:BVXEDH@192.168.100.2/video"
+    cap = cv2.VideoCapture(rtsp_url)
+
+    if not cap.isOpened():
+        print("Error: No se pudo conectar al stream de la cámara.")
+        return
+
+    while True:
+        start_time = time.time()
+
+        ret, frame = cap.read()
+        if not ret:
+            print("Error al recibir el frame de la cámara, reintentando...")
+            time.sleep(0.5)
+            continue
+
+        # Convierte la imagen a RGB (MediaPipe requiere este formato)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Procesa el frame con MediaPipe Pose
+        results = pose.process(rgb_frame)
+
+        # Actualiza `person_detected` con un bloqueo
+        with person_detected_lock:
+            if results.pose_landmarks:
+                visible_landmarks = [lm for lm in results.pose_landmarks.landmark if 0 <= lm.x <= 1 and 0 <= lm.y <= 1]
+                person_detected = len(visible_landmarks) >= 10  # Umbral para aceptar detecciones
+            else:
+                person_detected = False
+
+        # Limitar framerate a 5 FPS
+        elapsed = time.time() - start_time
+        if elapsed < 0.2:  # 1/5 segundos
+            time.sleep(0.2 - elapsed)
+
 
 @app.route('/')
 def home():
     return "Servidor Flask en funcionamiento", 200
+
 
 @app.route('/data', methods=['POST'])
 def receive_data():
@@ -44,7 +93,7 @@ def receive_data():
 @app.route('/location', methods=['GET'])
 def get_location():
     """
-    Endpoint para consultar los datos almacenados de los ESP32.
+    Endpoint para consultar los datos almacenados de los ESP32 y detección de personas.
     """
     try:
         # Crear una lista con los datos actuales
@@ -65,34 +114,24 @@ def get_location():
                 "Higinio": higinio_rssi,
             })
 
+        # Acceso sincronizado a person_detected
+        with person_detected_lock:
+            detected = person_detected
+
         return jsonify({
             "status": "success",
             "devices": data_list,
-            "person_detected": person_detected  # Incluye el estado de detección de persona
+            "person_detected": detected
         }), 200
     except Exception as e:
         print(f"Error al obtener datos: {e}")
         return jsonify({"status": "error", "message": "Error interno del servidor"}), 500
 
 
-@app.route('/person_detection', methods=['POST'])
-def update_person_detection():
-    """
-    Endpoint para recibir la información de la detección de persona desde el cliente.
-    """
-    global person_detected
-    try:
-        data = request.get_json()
-        if "person_detected" not in data:
-            return jsonify({"status": "error", "message": "Falta el dato 'person_detected'"}), 400
-
-        person_detected = data["person_detected"]  # Actualiza el estado de detección
-        return jsonify({"status": "success", "message": "Estado de detección de persona actualizado"}), 200
-    except Exception as e:
-        print(f"Error al procesar la detección de persona: {e}")
-        return jsonify({"status": "error", "message": "Error interno del servidor"}), 500
-
-
 if __name__ == '__main__':
+    # Iniciar el procesamiento de la cámara en un hilo separado
+    camera_thread = threading.Thread(target=process_camera_feed, daemon=True)
+    camera_thread.start()
+
     # Ejecutar el servidor Flask
     app.run(debug=True, host='0.0.0.0', port=5000)
