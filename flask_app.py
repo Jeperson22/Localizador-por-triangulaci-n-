@@ -9,10 +9,12 @@ app = Flask(__name__)
 # Almacenamiento temporal para los datos recibidos de los ESP32 y detección de personas
 esp32_data = {}
 person_detected = False
+person_detected_lock = threading.Lock()  # Bloqueo para sincronizar el acceso a `person_detected`
 
 # Inicializa MediaPipe Pose
 mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(min_detection_confidence=0.7, min_tracking_confidence=0.7)
+pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
 
 def process_camera_feed():
     global person_detected
@@ -26,6 +28,8 @@ def process_camera_feed():
         return
 
     while True:
+        start_time = time.time()
+
         ret, frame = cap.read()
         if not ret:
             print("Error al recibir el frame de la cámara, reintentando...")
@@ -38,16 +42,24 @@ def process_camera_feed():
         # Procesa el frame con MediaPipe Pose
         results = pose.process(rgb_frame)
 
-        # Verifica si se detecta una persona
-        if results.pose_landmarks:
-            visible_landmarks = [lm for lm in results.pose_landmarks.landmark if 0 <= lm.x <= 1 and 0 <= lm.y <= 1]
-            person_detected = len(visible_landmarks) >= 10  # Umbral para aceptar detecciones
-        else:
-            person_detected = False
+        # Actualiza `person_detected` con un bloqueo
+        with person_detected_lock:
+            if results.pose_landmarks:
+                visible_landmarks = [lm for lm in results.pose_landmarks.landmark if 0 <= lm.x <= 1 and 0 <= lm.y <= 1]
+                person_detected = len(visible_landmarks) >= 10  # Umbral para aceptar detecciones
+            else:
+                person_detected = False
+
+        # Limitar framerate a 5 FPS
+        elapsed = time.time() - start_time
+        if elapsed < 0.2:  # 1/5 segundos
+            time.sleep(0.2 - elapsed)
+
 
 @app.route('/')
 def home():
     return "Servidor Flask en funcionamiento", 200
+
 
 @app.route('/data', methods=['POST'])
 def receive_data():
@@ -77,6 +89,7 @@ def receive_data():
         print(f"Error al procesar los datos: {e}")
         return jsonify({"status": "error", "message": "Error interno del servidor"}), 500
 
+
 @app.route('/location', methods=['GET'])
 def get_location():
     """
@@ -101,15 +114,19 @@ def get_location():
                 "Higinio": higinio_rssi,
             })
 
-        # Agregar información de detección de personas
+        # Acceso sincronizado a person_detected
+        with person_detected_lock:
+            detected = person_detected
+
         return jsonify({
             "status": "success",
             "devices": data_list,
-            "person_detected": person_detected
+            "person_detected": detected
         }), 200
     except Exception as e:
         print(f"Error al obtener datos: {e}")
         return jsonify({"status": "error", "message": "Error interno del servidor"}), 500
+
 
 if __name__ == '__main__':
     # Iniciar el procesamiento de la cámara en un hilo separado
