@@ -3,4 +3,3 @@ opencv-contrib-python
 numpy
 gunicorn
 mediapipe
-threading
